@@ -1,17 +1,28 @@
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../lib/theme';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
+  const { theme } = useTheme();
+  
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#4F46E5',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: theme.tint,
+        tabBarInactiveTintColor: theme.tintInactive,
         headerShown: false,
         tabBarStyle: {
-          paddingBottom: 8,
+          backgroundColor: theme.tabBar,
+          borderTopColor: theme.tabBarBorder,
+          borderTopWidth: 0.5,
           paddingTop: 8,
-          height: 60,
+          height: Platform.OS === 'ios' ? 88 : 64,
+        },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '500',
+          marginTop: 2,
         },
       }}
     >
@@ -19,15 +30,26 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Today',
-          headerTitle: 'Today',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>📅</Text>,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? 'today' : 'today-outline'} 
+              size={24} 
+              color={color} 
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
           title: 'Calendar',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>🗓️</Text>,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? 'calendar' : 'calendar-outline'} 
+              size={24} 
+              color={color} 
+            />
+          ),
         }}
       />
       <Tabs.Screen
@@ -35,14 +57,26 @@ export default function TabLayout() {
         options={{
           title: 'Pets',
           headerShown: false,
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>🐾</Text>,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? 'paw' : 'paw-outline'} 
+              size={24} 
+              color={color} 
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>⚙️</Text>,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? 'settings' : 'settings-outline'} 
+              size={24} 
+              color={color} 
+            />
+          ),
         }}
       />
     </Tabs>

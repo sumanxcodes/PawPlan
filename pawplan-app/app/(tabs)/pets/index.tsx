@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
@@ -9,8 +8,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useHousehold } from '../../../lib/household-context';
+import { useTheme, spacing, radius } from '../../../lib/theme';
+import { Text, Icon, Card, Button } from '../../../components/ui';
 
 const SPECIES_EMOJI: Record<string, string> = {
   dog: '🐕',
@@ -25,6 +25,7 @@ const SPECIES_EMOJI: Record<string, string> = {
 
 export default function PetsListScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
   const { pets, refreshHousehold, isLoading } = useHousehold();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -44,54 +45,62 @@ export default function PetsListScreen() {
     const emoji = SPECIES_EMOJI[item.species?.toLowerCase()] || '🐾';
     
     return (
-      <TouchableOpacity
-        style={styles.petCard}
+      <Card 
+        variant="elevated" 
         onPress={() => router.push(`/(tabs)/pets/${item.id}`)}
+        style={styles.petCard}
       >
-        <View style={[styles.avatar, { backgroundColor: item.color_code || '#E5E7EB' }]}>
-          {item.avatar_url ? (
-            <Image source={{ uri: item.avatar_url }} style={styles.avatarImage} />
-          ) : (
-            <Text style={styles.avatarEmoji}>{emoji}</Text>
-          )}
+        <View style={styles.petCardContent}>
+          <View style={[styles.avatar, { backgroundColor: item.color_code || theme.accentBackground }]}>
+            {item.avatar_url ? (
+              <Image source={{ uri: item.avatar_url }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarEmoji}>{emoji}</Text>
+            )}
+          </View>
+          <View style={styles.petInfo}>
+            <Text variant="headline" weight="semibold">{item.name}</Text>
+            <Text variant="subhead" color="secondary" style={styles.petDetails}>
+              {item.species}{item.breed ? ` · ${item.breed}` : ''}
+            </Text>
+          </View>
+          <Icon name="chevron-forward" size={20} color={theme.textTertiary} />
         </View>
-        <View style={styles.petInfo}>
-          <Text style={styles.petName}>{item.name}</Text>
-          <Text style={styles.petDetails}>
-            {item.species}{item.breed ? ` • ${item.breed}` : ''}
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-      </TouchableOpacity>
+      </Card>
     );
   };
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyEmoji}>🐾</Text>
-      <Text style={styles.emptyTitle}>No pets yet</Text>
-      <Text style={styles.emptySubtitle}>
+      <View style={[styles.emptyIcon, { backgroundColor: theme.accentBackground }]}>
+        <Icon name="paw" size={48} color={theme.text} />
+      </View>
+      <Text variant="title2" weight="semibold" align="center" style={styles.emptyTitle}>
+        No pets yet
+      </Text>
+      <Text variant="body" color="secondary" align="center" style={styles.emptySubtitle}>
         Add your first pet to start tracking their care
       </Text>
-      <TouchableOpacity
-        style={styles.addButtonLarge}
+      <Button
+        title="Add Your First Pet"
         onPress={() => router.push('/(tabs)/pets/add')}
-      >
-        <Text style={styles.addButtonLargeText}>Add Your First Pet</Text>
-      </TouchableOpacity>
+        icon="add"
+        size="lg"
+        style={styles.emptyButton}
+      />
     </View>
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>My Pets</Text>
+    <View style={[styles.container, { backgroundColor: theme.backgroundSecondary }]}>
+      <View style={[styles.header, { backgroundColor: theme.background }]}>
+        <Text variant="largeTitle" weight="bold">Pets</Text>
         {pets.length > 0 && (
           <TouchableOpacity
-            style={styles.addButton}
+            style={[styles.addButton, { backgroundColor: theme.tint }]}
             onPress={() => router.push('/(tabs)/pets/add')}
           >
-            <Ionicons name="add" size={24} color="#fff" />
+            <Icon name="add" size={24} color={theme.textInverse} />
           </TouchableOpacity>
         )}
       </View>
@@ -103,7 +112,11 @@ export default function PetsListScreen() {
         contentContainerStyle={pets.length === 0 ? styles.emptyContainer : styles.listContent}
         ListEmptyComponent={renderEmptyState}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor={theme.text}
+          />
         }
       />
     </View>
@@ -113,74 +126,54 @@ export default function PetsListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
     paddingTop: 60,
-    paddingBottom: 20,
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
+    paddingBottom: spacing.lg,
   },
   addButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
   },
   listContent: {
-    padding: 16,
+    padding: spacing.lg,
+    gap: spacing.md,
   },
   petCard: {
+    marginBottom: spacing.sm,
+  },
+  petCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: spacing.md,
   },
   avatarImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
   avatarEmoji: {
-    fontSize: 28,
+    fontSize: 26,
   },
   petInfo: {
     flex: 1,
   },
-  petName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
   petDetails: {
-    fontSize: 14,
-    color: '#6B7280',
+    marginTop: 2,
     textTransform: 'capitalize',
   },
   emptyContainer: {
@@ -190,33 +183,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    padding: spacing['3xl'],
   },
-  emptyEmoji: {
-    fontSize: 64,
-    marginBottom: 16,
+  emptyIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing['2xl'],
   },
   emptyTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   emptySubtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: spacing['2xl'],
   },
-  addButtonLarge: {
-    backgroundColor: '#4F46E5',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  addButtonLargeText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  emptyButton: {
+    minWidth: 200,
   },
 });

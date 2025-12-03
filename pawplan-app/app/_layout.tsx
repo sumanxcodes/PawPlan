@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, StatusBar } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { HouseholdProvider, useHousehold } from '../lib/household-context';
+import { ThemeProvider, useTheme } from '../lib/theme';
 
 function RootLayoutNav() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { household, isLoading: householdLoading } = useHousehold();
+  const { theme } = useTheme();
   const segments = useSegments();
   const router = useRouter();
 
@@ -57,19 +59,27 @@ function RootLayoutNav() {
 
   if (isLoading || householdLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
+        <StatusBar barStyle={theme.statusBar} />
+        <ActivityIndicator size="large" color={theme.text} />
       </View>
     );
   }
 
-  return <Slot />;
+  return (
+    <>
+      <StatusBar barStyle={theme.statusBar} />
+      <Slot />
+    </>
+  );
 }
 
 export default function RootLayout() {
   return (
-    <HouseholdProvider>
-      <RootLayoutNav />
-    </HouseholdProvider>
+    <ThemeProvider>
+      <HouseholdProvider>
+        <RootLayoutNav />
+      </HouseholdProvider>
+    </ThemeProvider>
   );
 }
