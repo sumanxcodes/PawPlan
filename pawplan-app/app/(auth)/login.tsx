@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -11,8 +10,11 @@ import {
 } from 'react-native';
 import { Link } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { useTheme, spacing, radius } from '../../lib/theme';
+import { Text, Button, Icon } from '../../components/ui';
 
 export default function LoginScreen() {
+  const { theme } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,47 +40,83 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>🐾 PawPlan</Text>
-        <Text style={styles.subtitle}>Welcome back!</Text>
+        <View style={styles.header}>
+          <Icon name="paw" size={48} color={theme.text} />
+          <Text variant="largeTitle" weight="bold" style={styles.title}>
+            PawPlan
+          </Text>
+          <Text variant="body" color="secondary">
+            Welcome back
+          </Text>
+        </View>
 
         <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#999"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#999"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={styles.inputContainer}>
+            <Text variant="subhead" weight="medium" style={styles.label}>
+              Email
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                { 
+                  backgroundColor: theme.inputBackground,
+                  borderColor: theme.inputBorder,
+                  color: theme.text,
+                },
+              ]}
+              placeholder="your@email.com"
+              placeholderTextColor={theme.textTertiary}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+          <View style={styles.inputContainer}>
+            <Text variant="subhead" weight="medium" style={styles.label}>
+              Password
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                { 
+                  backgroundColor: theme.inputBackground,
+                  borderColor: theme.inputBorder,
+                  color: theme.text,
+                },
+              ]}
+              placeholder="••••••••"
+              placeholderTextColor={theme.textTertiary}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
+
+          <Button
+            title={loading ? 'Signing in...' : 'Sign In'}
             onPress={handleLogin}
             disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Text>
-          </TouchableOpacity>
+            loading={loading}
+            fullWidth
+            size="lg"
+            style={styles.button}
+          />
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
+          <Text variant="subhead" color="secondary">
+            Don't have an account?{' '}
+          </Text>
           <Link href="/(auth)/sign-up" asChild>
             <TouchableOpacity>
-              <Text style={styles.linkText}>Sign Up</Text>
+              <Text variant="subhead" weight="semibold">
+                Sign Up
+              </Text>
             </TouchableOpacity>
           </Link>
         </View>
@@ -90,65 +128,42 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing['2xl'],
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: spacing['5xl'],
   },
   title: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 48,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
   },
   form: {
-    gap: 16,
+    gap: spacing.lg,
+  },
+  inputContainer: {
+    gap: spacing.sm,
+  },
+  label: {
+    marginLeft: spacing.xs,
   },
   input: {
-    height: 50,
+    height: 52,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    fontSize: 17,
   },
   button: {
-    height: 50,
-    backgroundColor: '#4F46E5',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    marginTop: spacing.sm,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 32,
-  },
-  footerText: {
-    color: '#666',
-    fontSize: 14,
-  },
-  linkText: {
-    color: '#4F46E5',
-    fontSize: 14,
-    fontWeight: '600',
+    marginTop: spacing['3xl'],
   },
 });
