@@ -7,7 +7,7 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: '#4F46E5',
         tabBarInactiveTintColor: '#9CA3AF',
-        headerShown: true,
+        headerShown: false,
         tabBarStyle: {
           paddingBottom: 8,
           paddingTop: 8,
@@ -34,6 +34,7 @@ export default function TabLayout() {
         name="pets"
         options={{
           title: 'Pets',
+          headerShown: false,
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>🐾</Text>,
         }}
       />
