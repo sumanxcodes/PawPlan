@@ -10,6 +10,7 @@ import { Icon } from './Icon';
 import { useTheme, radius, spacing } from '../../lib/theme';
 import { ComponentProps, ReactNode } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
@@ -24,6 +25,7 @@ interface ButtonProps {
   iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
   style?: ViewStyle;
+  haptic?: boolean;
 }
 
 export function Button({
@@ -37,8 +39,16 @@ export function Button({
   iconPosition = 'left',
   fullWidth = false,
   style,
+  haptic = true,
 }: ButtonProps) {
   const { theme, isDark } = useTheme();
+
+  const handlePress = () => {
+    if (haptic && Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onPress();
+  };
 
   const sizes = {
     sm: { height: 36, paddingHorizontal: spacing.md, iconSize: 16, fontSize: 14 },
@@ -83,7 +93,7 @@ export function Button({
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled || loading}
       activeOpacity={0.7}
       style={[

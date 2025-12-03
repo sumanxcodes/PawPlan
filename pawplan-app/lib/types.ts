@@ -54,9 +54,18 @@ export interface Task {
   task_type: TaskType | null;
   pet_ids: string[];
   frequency: TaskFrequency;
-  recurrence_rule: Record<string, unknown>;
+  recurrence_rule: RecurrenceRule;
+  default_assignee_id: string | null;
+  details: string | null;
   is_active: boolean;
   created_at: string;
+}
+
+export interface RecurrenceRule {
+  time?: string; // HH:MM format
+  days_of_week?: number[]; // 0-6 (Sunday-Saturday)
+  day_of_month?: number;
+  interval?: number; // For custom: every N days
 }
 
 export interface ActivityLog {
