@@ -72,6 +72,10 @@ function RootLayoutNav() {
     const inTabsGroup = segments[0] === '(tabs)';
     const inResetPassword = segments[1] === 'reset-password';
     const inForgotPassword = segments[1] === 'forgot-password';
+    const inAuthCallback = segments[0] === 'auth'; // For auth/callback deep link
+
+    // Skip redirect if in auth callback (handling email verification)
+    if (inAuthCallback) return;
 
     // Skip redirect if user is in forgot-password or reset-password screens
     if (inForgotPassword || inResetPassword) {

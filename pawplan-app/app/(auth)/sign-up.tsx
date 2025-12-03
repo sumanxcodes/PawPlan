@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 
 export default function SignUpScreen() {
@@ -32,18 +32,21 @@ export default function SignUpScreen() {
         data: {
           full_name: fullName,
         },
+        emailRedirectTo: 'pawplan://auth/callback',
       },
     });
 
     if (error) {
       Alert.alert('Sign Up Error', error.message);
+      setLoading(false);
     } else {
-      Alert.alert(
-        'Check your email',
-        'We sent you a confirmation link to verify your account.'
-      );
+      setLoading(false);
+      // Navigate to verify email screen with OTP
+      router.push({
+        pathname: '/(auth)/verify-email',
+        params: { email },
+      });
     }
-    setLoading(false);
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -20,7 +20,22 @@ export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const [step, setStep] = useState<'email' | 'otp'>('email');
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  const handleOtpChange = (value: string) => {
+    // Only allow numbers, max 10 digits (Supabase OTP is 6-10 digits)
+    const sanitized = value.replace(/[^0-9]/g, '').slice(0, 10);
+    setOtp(sanitized);
+  };
 
   async function handleSendOtp() {
     if (!email) {
@@ -35,13 +50,14 @@ export default function ForgotPasswordScreen() {
       Alert.alert('Error', error.message);
     } else {
       setStep('otp');
+      setCountdown(60);
     }
     setLoading(false);
   }
 
   async function handleVerifyOtp() {
-    if (!otp || otp.length < 6) {
-      Alert.alert('Error', 'Please enter the verification code from your email');
+    if (otp.length < 6) {
+      Alert.alert('Error', 'Please enter the verification code (6-10 digits)');
       return;
     }
 
@@ -70,6 +86,21 @@ export default function ForgotPasswordScreen() {
     router.push('/(auth)/reset-password');
   }
 
+  async function handleResend() {
+    if (countdown > 0) return;
+    
+    setResending(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    setResending(false);
+
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      setCountdown(60);
+      Alert.alert('Code Sent', 'A new verification code has been sent to your email.');
+    }
+  }
+
   // OTP verification state
   if (step === 'otp') {
     return (
@@ -79,7 +110,9 @@ export default function ForgotPasswordScreen() {
       >
         <View style={styles.content}>
           <View style={styles.header}>
-            <Icon name="mail-open" size={48} color={theme.text} />
+            <View style={[styles.iconCircle, { backgroundColor: theme.accent + '20' }]}>
+              <Icon name="mail-open" size={40} color={theme.accent} />
+            </View>
             <Text variant="title1" weight="bold" style={styles.title}>
               Check Your Email
             </Text>
@@ -89,61 +122,66 @@ export default function ForgotPasswordScreen() {
             </Text>
           </View>
 
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Text variant="subhead" weight="medium" style={styles.label}>
-                Verification Code
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.otpInput,
-                  { 
-                    backgroundColor: theme.inputBackground,
-                    borderColor: theme.inputBorder,
-                    color: theme.text,
-                  },
-                ]}
-                placeholder="Enter code"
-                placeholderTextColor={theme.textTertiary}
-                value={otp}
-                onChangeText={setOtp}
-                keyboardType="number-pad"
-                autoFocus
-              />
-            </View>
-
-            <Button
-              title={loading ? 'Verifying...' : 'Verify Code'}
-              onPress={handleVerifyOtp}
-              disabled={loading}
-              loading={loading}
-              fullWidth
-              size="lg"
-              style={styles.button}
+          <View style={styles.otpContainer}>
+            <TextInput
+              style={[
+                styles.otpInput,
+                {
+                  backgroundColor: theme.inputBackground,
+                  borderColor: otp.length >= 6 ? theme.accent : theme.inputBorder,
+                  color: theme.text,
+                },
+              ]}
+              value={otp}
+              onChangeText={handleOtpChange}
+              keyboardType="number-pad"
+              maxLength={10}
+              placeholder="Enter code"
+              placeholderTextColor={theme.textTertiary}
+              autoFocus
             />
+            <Text variant="caption1" color="secondary" style={styles.otpHint}>
+              Enter the 6-10 digit code from your email
+            </Text>
           </View>
 
-          <TouchableOpacity 
-            style={styles.resendButton}
-            onPress={() => {
-              handleSendOtp();
-            }}
-          >
+          <Button
+            title={loading ? 'Verifying...' : 'Verify Code'}
+            onPress={handleVerifyOtp}
+            disabled={loading || otp.length < 6}
+            loading={loading}
+            fullWidth
+            size="lg"
+            style={styles.button}
+          />
+
+          <View style={styles.resendContainer}>
             <Text variant="subhead" color="secondary">
               Didn't receive the code?{' '}
             </Text>
-            <Text variant="subhead" weight="semibold">
-              Resend
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity onPress={handleResend} disabled={countdown > 0 || resending}>
+              <Text 
+                variant="subhead" 
+                weight="semibold"
+                style={{ 
+                  color: countdown > 0 ? theme.textTertiary : theme.accent,
+                }}
+              >
+                {countdown > 0 ? `Resend in ${countdown}s` : resending ? 'Sending...' : 'Resend'}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => setStep('email')}
+            style={styles.backToEmailButton}
+            onPress={() => {
+              setStep('email');
+              setOtp('');
+            }}
           >
+            <Icon name="arrow-back" size={16} color={theme.textSecondary} />
             <Text variant="subhead" color="secondary">
-              ← Back to email
+              Back to email
             </Text>
           </TouchableOpacity>
         </View>
@@ -230,10 +268,17 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing['4xl'],
+    marginBottom: spacing['3xl'],
+  },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
   },
   title: {
-    marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
   subtitle: {
@@ -256,26 +301,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     fontSize: 17,
   },
+  otpContainer: {
+    alignItems: 'center',
+    marginBottom: spacing['2xl'],
+  },
   otpInput: {
+    width: '100%',
+    height: 56,
+    borderWidth: 2,
+    borderRadius: radius.lg,
+    fontSize: 24,
+    fontWeight: '600',
     textAlign: 'center',
-    fontSize: 20,
-    letterSpacing: 4,
+    letterSpacing: 8,
+  },
+  otpHint: {
+    marginTop: spacing.sm,
   },
   button: {
-    marginTop: spacing.sm,
+    marginBottom: spacing.xl,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: spacing['3xl'],
   },
-  resendButton: {
+  resendContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
   },
-  backButton: {
+  backToEmailButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.lg,
+    justifyContent: 'center',
+    gap: spacing.xs,
   },
 });

@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, Appearance } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const THEME_STORAGE_KEY = '@pawplan_theme_mode';
 
 // Monotone color palette
 const palette = {
@@ -165,23 +168,63 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemColorScheme = useColorScheme();
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>('system');
+  const [isLoading, setIsLoading] = useState(true);
   
+  // Load saved theme preference on mount
+  useEffect(() => {
+    AsyncStorage.getItem(THEME_STORAGE_KEY).then((savedTheme) => {
+      if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
+        setThemeMode(savedTheme);
+      }
+      setIsLoading(false);
+    });
+  }, []);
+
+  // Listen to system theme changes
+  useEffect(() => {
+    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+      // Force re-render when system theme changes
+      if (themeMode === 'system') {
+        // The hook will automatically update, but we can force a state update
+        setThemeMode('system');
+      }
+    });
+    return () => subscription.remove();
+  }, [themeMode]);
+
+  // Determine if dark mode is active
+  // useColorScheme() can return null, so we need to handle that
+  const getSystemIsDark = () => {
+    // Try the hook value first
+    if (systemColorScheme !== null) {
+      return systemColorScheme === 'dark';
+    }
+    // Fallback to Appearance API
+    const appearance = Appearance.getColorScheme();
+    return appearance === 'dark';
+  };
+
   const isDark = themeMode === 'system' 
-    ? systemColorScheme === 'dark' 
+    ? getSystemIsDark()
     : themeMode === 'dark';
   
   const theme = isDark ? darkTheme : lightTheme;
 
   const toggleTheme = () => {
     setThemeMode(prev => {
-      if (prev === 'system') return 'dark';
-      if (prev === 'dark') return 'light';
-      return 'system';
+      const next = prev === 'system' ? 'dark' : prev === 'dark' ? 'light' : 'system';
+      AsyncStorage.setItem(THEME_STORAGE_KEY, next);
+      return next;
     });
   };
 
+  const handleSetTheme = (mode: 'light' | 'dark' | 'system') => {
+    setThemeMode(mode);
+    AsyncStorage.setItem(THEME_STORAGE_KEY, mode);
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, isDark, toggleTheme, setTheme: setThemeMode, themeMode }}>
+    <ThemeContext.Provider value={{ theme, isDark, toggleTheme, setTheme: handleSetTheme, themeMode }}>
       {children}
     </ThemeContext.Provider>
   );
