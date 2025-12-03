@@ -77,9 +77,18 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text variant="subhead" weight="medium" style={styles.label}>
-              Password
-            </Text>
+            <View style={styles.passwordHeader}>
+              <Text variant="subhead" weight="medium" style={styles.label}>
+                Password
+              </Text>
+              <Link href="/(auth)/forgot-password" asChild>
+                <TouchableOpacity>
+                  <Text variant="caption1" color="secondary">
+                    Forgot Password?
+                  </Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
             <TextInput
               style={[
                 styles.input,
@@ -147,6 +156,11 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     gap: spacing.sm,
+  },
+  passwordHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   label: {
     marginLeft: spacing.xs,
