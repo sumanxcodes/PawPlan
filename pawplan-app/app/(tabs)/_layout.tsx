@@ -1,32 +1,50 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme, spacing, radius } from '../../lib/theme';
+import { useTheme } from '../../lib/theme'; // Removed spacing and radius
 import { Platform, StyleSheet, View } from 'react-native';
-
-import CustomTabBar from '../../components/CustomTabBar'; // Import custom tab bar
+import { BlurView } from 'expo-blur'; // Re-added BlurView
 
 export default function TabLayout() {
   const { theme, isDark } = useTheme();
   
-  // Apple HIG: Tab bars use Liquid Glass - translucent with content peeking through
-  // Prefer filled symbols for selected state, outline for unselected
   return (
     <Tabs
       key={isDark ? 'dark' : 'light'}
-      tabBar={props => <CustomTabBar {...props} />} // Use custom tab bar
       screenOptions={{
-        headerShown: false,
-        // The rest of the screenOptions can be simplified as CustomTabBar handles appearance
-        // However, tabBarActiveTintColor and tabBarInactiveTintColor are still useful for icons in CustomTabBar
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
+        headerShown: false,
+        tabBarShowLabel: true,
+        tabBarStyle: {
+          backgroundColor: 'transparent', // Make it transparent for BlurView to work
+          borderTopWidth: 0, // Remove default border
+          elevation: 0, // Remove shadow on Android
+          height: Platform.OS === 'ios' ? 88 : 60, // Standard iOS height with safe area
+          paddingBottom: Platform.OS === 'ios' ? 34 : 0, // Adjust for safe area on iOS
+        },
+        tabBarBackground: () => (
+          <BlurView
+            intensity={95} // Standard iOS blur intensity
+            tint={isDark ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFill}
+          />
+        ),
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '500',
+        },
+        tabBarItemStyle: {
+          paddingVertical: 5, // Default padding for items
+        },
+        tabBarIconStyle: {
+          marginBottom: 0,
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Today',
-          // Apple HIG: Prefer filled symbols for consistency
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? 'today' : 'today-outline'} 
