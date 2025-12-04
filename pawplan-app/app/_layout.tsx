@@ -3,9 +3,13 @@ import { View, ActivityIndicator, StatusBar } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { HouseholdProvider, useHousehold } from '../lib/household-context';
 import { ThemeProvider, useTheme } from '../lib/theme';
+
+// Create a client
+const queryClient = new QueryClient();
 
 // Key for tracking password reset flow
 export const PASSWORD_RESET_FLAG = 'pawplan_password_reset_in_progress';
@@ -23,7 +27,7 @@ function RootLayoutNav() {
   const [isPasswordReset, setIsPasswordReset] = useState(false);
   const { household, isLoading: householdLoading } = useHousehold();
   const { theme } = useTheme();
-  const segments = useSegments();
+  const segments = useSegments() as string[];
   const router = useRouter();
 
   useEffect(() => {
@@ -126,10 +130,12 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <HouseholdProvider>
-        <RootLayoutNav />
-      </HouseholdProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <HouseholdProvider>
+          <RootLayoutNav />
+        </HouseholdProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
