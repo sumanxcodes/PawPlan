@@ -10,10 +10,12 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { decode } from 'base64-arraybuffer';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '../../../lib/supabase';
 import { useHousehold } from '../../../lib/household-context';
 import { useTheme, spacing, radius } from '../../../lib/theme';
@@ -58,6 +60,8 @@ export default function AddPetScreen() {
   const [colorCode, setColorCode] = useState(COLOR_OPTIONS[4]);
   const [notes, setNotes] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [birthDate, setBirthDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   async function pickImage() {
     try {
@@ -83,7 +87,6 @@ export default function AddPetScreen() {
 
     try {
       const base64 = imageAsset.base64;
-      // Use a temp timestamp for new pet image
       const fileName = `${household.id}/new-${Date.now()}.jpg`;
       
       const { data, error } = await supabase.storage
@@ -133,6 +136,7 @@ export default function AddPetScreen() {
         color_code: colorCode,
         avatar_url: avatarUrl,
         notes: notes.trim() || null,
+        birth_date: birthDate ? birthDate.toISOString().split('T')[0] : null,
       });
 
       if (error) throw error;
@@ -255,6 +259,17 @@ export default function AddPetScreen() {
             </View>
             <View style={[styles.divider, { backgroundColor: theme.separator }]} />
             
+            {/* Birth Date */}
+            <View style={styles.formRow}>
+              <Text variant="body">Birth Date</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(true)}>
+                <Text variant="body" style={{ color: birthDate ? theme.text : theme.textTertiary }}>
+                  {birthDate ? birthDate.toLocaleDateString() : 'Optional'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.divider, { backgroundColor: theme.separator }]} />
+
             {/* Sex Selection */}
             <View style={styles.formRow}>
               <Text variant="body">Sex</Text>
@@ -327,6 +342,56 @@ export default function AddPetScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Date Picker Modal */}
+      {(Platform.OS === 'ios' || Platform.OS === 'android') && showDatePicker && (
+        Platform.OS === 'ios' ? (
+          <Modal visible={showDatePicker} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                <View style={[styles.modalHeader, { borderBottomColor: theme.separator }]}>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <Text variant="body" color="secondary">Cancel</Text>
+                  </TouchableOpacity>
+                  <Text variant="headline" weight="semibold">Birth Date</Text>
+                  <TouchableOpacity onPress={() => {
+                     if (!birthDate) setBirthDate(new Date());
+                     setShowDatePicker(false); 
+                  }}>
+                    <Text variant="body" weight="semibold" style={{ color: theme.accent }}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.timePickerContainer}>
+                  <DateTimePicker
+                    value={birthDate || new Date()}
+                    mode="date"
+                    display="spinner"
+                    maximumDate={new Date()}
+                    onChange={(event, date) => {
+                      if (date) setBirthDate(date);
+                    }}
+                    style={styles.timePicker}
+                    textColor={theme.text}
+                  />
+                </View>
+              </View>
+            </View>
+          </Modal>
+        ) : (
+          <DateTimePicker
+            value={birthDate || new Date()}
+            mode="date"
+            display="default"
+            maximumDate={new Date()}
+            onChange={(event, date) => {
+              setShowDatePicker(false);
+              if (event.type === 'set' && date) {
+                setBirthDate(date);
+              }
+            }}
+          />
+        )
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -447,5 +512,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 3,
     elevation: 3,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingBottom: spacing['4xl'],
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  timePickerContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  timePicker: {
+    width: '100%',
+    height: 216,
   },
 });
