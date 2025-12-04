@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { HouseholdProvider, useHousehold } from '../lib/household-context';
 import { ThemeProvider, useTheme } from '../lib/theme';
+import { registerForPushNotificationsAsync, savePushToken } from '../lib/notifications';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -61,6 +62,15 @@ function RootLayoutNav() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Register for push notifications
+  useEffect(() => {
+    if (session?.user) {
+      registerForPushNotificationsAsync().then(token => {
+        if (token) savePushToken(token);
+      });
+    }
+  }, [session]);
 
   // Function to clear password reset state (called from reset-password screen)
   const clearPasswordReset = async () => {
