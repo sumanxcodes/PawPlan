@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -9,11 +8,16 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { decode } from 'base64-arraybuffer';
 import { supabase } from '../../../lib/supabase';
 import { useHousehold } from '../../../lib/household-context';
+import { useTheme, spacing, radius } from '../../../lib/theme';
+import { Text, Icon, Card } from '../../../components/ui';
 
 const SPECIES_OPTIONS = [
   { value: 'dog', label: 'Dog', emoji: '🐕' },
@@ -42,7 +46,10 @@ const COLOR_OPTIONS = [
 export default function AddPetScreen() {
   const router = useRouter();
   const { household, refreshHousehold } = useHousehold();
+  const { theme } = useTheme();
+  
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   
   const [name, setName] = useState('');
   const [species, setSpecies] = useState('');
@@ -50,6 +57,56 @@ export default function AddPetScreen() {
   const [sex, setSex] = useState('');
   const [colorCode, setColorCode] = useState(COLOR_OPTIONS[4]);
   const [notes, setNotes] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  async function pickImage() {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        uploadImage(result.assets[0]);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  }
+
+  async function uploadImage(imageAsset: ImagePicker.ImagePickerAsset) {
+    if (!household?.id) return;
+    setUploading(true);
+
+    try {
+      const base64 = imageAsset.base64;
+      // Use a temp timestamp for new pet image
+      const fileName = `${household.id}/new-${Date.now()}.jpg`;
+      
+      const { data, error } = await supabase.storage
+        .from('pet-avatars')
+        .upload(fileName, decode(base64!), {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('pet-avatars')
+        .getPublicUrl(fileName);
+
+      setAvatarUrl(publicUrl);
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      Alert.alert('Upload Failed', 'Could not upload image. Check if storage bucket "pet-avatars" exists.');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleSave() {
     if (!name.trim()) {
@@ -74,6 +131,7 @@ export default function AddPetScreen() {
         breed: breed.trim() || null,
         sex: sex || null,
         color_code: colorCode,
+        avatar_url: avatarUrl,
         notes: notes.trim() || null,
       });
 
@@ -91,136 +149,183 @@ export default function AddPetScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.backgroundSecondary }]}
     >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="close" size={28} color="#111827" />
+      <View style={[styles.header, { backgroundColor: theme.background }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
+          <Text variant="body" color="secondary">Cancel</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Pet</Text>
-        <TouchableOpacity onPress={handleSave} disabled={loading}>
-          <Text style={[styles.saveButton, loading && styles.saveButtonDisabled]}>
-            {loading ? 'Saving...' : 'Save'}
-          </Text>
+        <Text variant="headline" weight="semibold">Add Pet</Text>
+        <TouchableOpacity onPress={handleSave} style={styles.headerButton} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator size="small" color={theme.accent} />
+          ) : (
+            <Text variant="body" weight="semibold" style={{ color: theme.accent }}>Save</Text>
+          )}
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
-        {/* Name */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Name *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="What's your pet's name?"
-            placeholderTextColor="#9CA3AF"
-            value={name}
-            onChangeText={setName}
-          />
-        </View>
-
-        {/* Species */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Species *</Text>
-          <View style={styles.optionsGrid}>
-            {SPECIES_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.speciesOption,
-                  species === option.value && styles.speciesOptionSelected,
-                ]}
-                onPress={() => setSpecies(option.value)}
-              >
-                <Text style={styles.speciesEmoji}>{option.emoji}</Text>
-                <Text
-                  style={[
-                    styles.speciesLabel,
-                    species === option.value && styles.speciesLabelSelected,
-                  ]}
-                >
-                  {option.label}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Avatar Section */}
+        <View style={styles.avatarSection}>
+          <TouchableOpacity onPress={pickImage} activeOpacity={0.8} style={styles.avatarContainer}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatarPlaceholder, { backgroundColor: colorCode || theme.accent }]}>
+                <Text style={{ fontSize: 48 }}>
+                  {SPECIES_OPTIONS.find(s => s.value === species)?.emoji || '🐾'}
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+              </View>
+            )}
+            <View style={[styles.editBadge, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
+              {uploading ? (
+                <ActivityIndicator size="small" color={theme.text} />
+              ) : (
+                <Icon name="camera" size={16} color={theme.text} />
+              )}
+            </View>
+          </TouchableOpacity>
+          <Text variant="caption1" color="secondary" style={{ marginTop: spacing.xs }}>
+            Add Photo
+          </Text>
         </View>
 
-        {/* Breed */}
+        {/* General Info */}
         <View style={styles.section}>
-          <Text style={styles.label}>Breed (optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., Golden Retriever"
-            placeholderTextColor="#9CA3AF"
-            value={breed}
-            onChangeText={setBreed}
-          />
+          <Text variant="subhead" color="secondary" style={styles.sectionTitle}>GENERAL INFO</Text>
+          <Card variant="elevated">
+            <View style={styles.formRow}>
+              <Text variant="body">Name</Text>
+              <TextInput
+                style={[styles.textInput, { color: theme.text }]}
+                placeholder="Pet Name"
+                placeholderTextColor={theme.textTertiary}
+                value={name}
+                onChangeText={setName}
+                textAlign="right"
+              />
+            </View>
+            <View style={[styles.divider, { backgroundColor: theme.separator }]} />
+            
+            {/* Species Selection */}
+            <View style={styles.formRowVertical}>
+              <Text variant="body" style={{ marginBottom: spacing.sm }}>Species</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -spacing.md }} contentContainerStyle={{ paddingHorizontal: spacing.md }}>
+                {SPECIES_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.speciesChip,
+                      species === option.value 
+                        ? { backgroundColor: theme.accent, borderColor: theme.accent }
+                        : { backgroundColor: theme.background, borderColor: theme.surfaceBorder }
+                    ]}
+                    onPress={() => setSpecies(option.value)}
+                  >
+                    <Text style={{ fontSize: 16 }}>{option.emoji}</Text>
+                    <Text 
+                      variant="caption1" 
+                      weight="medium"
+                      style={{ color: species === option.value ? '#FFF' : theme.text }}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </Card>
         </View>
 
-        {/* Sex */}
+        {/* Details */}
         <View style={styles.section}>
-          <Text style={styles.label}>Sex (optional)</Text>
-          <View style={styles.sexOptions}>
-            {SEX_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.sexOption,
-                  sex === option.value && styles.sexOptionSelected,
-                ]}
-                onPress={() => setSex(option.value)}
-              >
-                <Text
-                  style={[
-                    styles.sexLabel,
-                    sex === option.value && styles.sexLabelSelected,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <Text variant="subhead" color="secondary" style={styles.sectionTitle}>DETAILS</Text>
+          <Card variant="elevated">
+            <View style={styles.formRow}>
+              <Text variant="body">Breed</Text>
+              <TextInput
+                style={[styles.textInput, { color: theme.text }]}
+                placeholder="Optional"
+                placeholderTextColor={theme.textTertiary}
+                value={breed}
+                onChangeText={setBreed}
+                textAlign="right"
+              />
+            </View>
+            <View style={[styles.divider, { backgroundColor: theme.separator }]} />
+            
+            {/* Sex Selection */}
+            <View style={styles.formRow}>
+              <Text variant="body">Sex</Text>
+              <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                {SEX_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.sexChip,
+                      sex === option.value 
+                        ? { backgroundColor: theme.accent } 
+                        : { backgroundColor: theme.background, borderWidth: 1, borderColor: theme.surfaceBorder }
+                    ]}
+                    onPress={() => setSex(option.value)}
+                  >
+                    <Text 
+                      variant="caption2" 
+                      weight="semibold"
+                      style={{ color: sex === option.value ? '#FFF' : theme.text }}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </Card>
         </View>
 
-        {/* Color */}
+        {/* Appearance */}
         <View style={styles.section}>
-          <Text style={styles.label}>Color Tag</Text>
-          <View style={styles.colorOptions}>
-            {COLOR_OPTIONS.map((color) => (
-              <TouchableOpacity
-                key={color}
-                style={[
-                  styles.colorOption,
-                  { backgroundColor: color },
-                  colorCode === color && styles.colorOptionSelected,
-                ]}
-                onPress={() => setColorCode(color)}
-              >
-                {colorCode === color && (
-                  <Ionicons name="checkmark" size={16} color="#fff" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
+          <Text variant="subhead" color="secondary" style={styles.sectionTitle}>APPEARANCE</Text>
+          <Card variant="elevated">
+            <View style={styles.formRowVertical}>
+              <Text variant="body" style={{ marginBottom: spacing.sm }}>Color Tag</Text>
+              <View style={styles.colorGrid}>
+                {COLOR_OPTIONS.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[
+                      styles.colorCircle,
+                      { backgroundColor: color },
+                      colorCode === color && styles.colorCircleSelected,
+                    ]}
+                    onPress={() => setColorCode(color)}
+                  >
+                    {colorCode === color && <Icon name="checkmark" size={14} color="#FFF" />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </Card>
         </View>
 
         {/* Notes */}
         <View style={styles.section}>
-          <Text style={styles.label}>Notes (optional)</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Any special notes about your pet..."
-            placeholderTextColor="#9CA3AF"
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
+          <Text variant="subhead" color="secondary" style={styles.sectionTitle}>NOTES</Text>
+          <Card variant="elevated">
+            <TextInput
+              style={[styles.textArea, { color: theme.text }]}
+              placeholder="Any special care instructions..."
+              placeholderTextColor={theme.textTertiary}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              scrollEnabled={false}
+            />
+          </Card>
         </View>
 
-        <View style={styles.bottomPadding} />
+        <View style={{ height: 100 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -229,137 +334,118 @@ export default function AddPetScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+  headerButton: {
+    minWidth: 60,
+    alignItems: 'center', // Center for 'Cancel', but check alignment for 'Save'
   },
-  saveButton: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4F46E5',
-  },
-  saveButtonDisabled: {
-    color: '#9CA3AF',
-  },
-  form: {
+  content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: spacing.lg,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+  },
+  avatarContainer: {
+    position: 'relative',
+  },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: spacing.lg,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+  sectionTitle: {
+    marginBottom: spacing.xs,
+    marginLeft: spacing.xs,
   },
-  input: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    backgroundColor: '#F9FAFB',
-    color: '#111827',
+  formRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    minHeight: 44,
+  },
+  formRowVertical: {
+    paddingVertical: spacing.sm,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 17,
+    paddingLeft: spacing.md,
   },
   textArea: {
-    height: 100,
-    paddingTop: 12,
+    fontSize: 17,
+    minHeight: 80,
+    paddingVertical: spacing.sm,
   },
-  optionsGrid: {
+  divider: {
+    height: 1,
+    marginLeft: 0,
+  },
+  speciesChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    marginRight: spacing.sm,
+    gap: 6,
+  },
+  sexChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+  },
+  colorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: spacing.sm,
   },
-  speciesOption: {
-    width: '23%',
-    aspectRatio: 1,
+  colorCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 12,
+  },
+  colorCircleSelected: {
     borderWidth: 2,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
-  },
-  speciesOptionSelected: {
-    borderColor: '#4F46E5',
-    backgroundColor: '#EEF2FF',
-  },
-  speciesEmoji: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  speciesLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  speciesLabelSelected: {
-    color: '#4F46E5',
-    fontWeight: '600',
-  },
-  sexOptions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  sexOption: {
-    flex: 1,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
-  },
-  sexOptionSelected: {
-    borderColor: '#4F46E5',
-    backgroundColor: '#EEF2FF',
-  },
-  sexLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  sexLabelSelected: {
-    color: '#4F46E5',
-    fontWeight: '600',
-  },
-  colorOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  colorOption: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  colorOptionSelected: {
-    borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: '#FFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  bottomPadding: {
-    height: 40,
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
   },
 });
