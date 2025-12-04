@@ -63,8 +63,10 @@ export interface Task {
 
 export interface RecurrenceRule {
   time?: string; // HH:MM format
+  date?: string; // YYYY-MM-DD format (for one-time)
   days_of_week?: number[]; // 0-6 (Sunday-Saturday)
   day_of_month?: number;
+  month?: number; // 0-11 (for yearly)
   interval?: number; // For custom: every N days
 }
 
