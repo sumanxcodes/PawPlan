@@ -267,11 +267,13 @@ export default function TabIndex() {
           <TouchableOpacity
             style={[
               styles.petFilterPill, 
-              selectedPetFilter === 'all' ? { backgroundColor: '#FFFFFF' } : { backgroundColor: 'rgba(255,255,255,0.6)' }
+              selectedPetFilter === 'all' 
+                ? { backgroundColor: theme.surface, borderColor: theme.surfaceBorder } 
+                : { backgroundColor: theme.inputBackground, borderColor: theme.surfaceBorder }
             ]}
             onPress={() => setSelectedPetFilter('all')}
           >
-            <Text variant="subhead" weight={selectedPetFilter === 'all' ? 'semibold' : 'medium'}>
+            <Text variant="subhead" weight={selectedPetFilter === 'all' ? 'semibold' : 'medium'} style={{ color: theme.text }}>
               All Pets
             </Text>
           </TouchableOpacity>
@@ -283,7 +285,9 @@ export default function TabIndex() {
                 key={pet.id}
                 style={[
                   styles.petFilterPill,
-                  isSelected ? { backgroundColor: theme.accent } : { backgroundColor: '#FFFFFF' }
+                  isSelected 
+                    ? { backgroundColor: theme.accent, borderColor: theme.accent } 
+                    : { backgroundColor: theme.inputBackground, borderColor: theme.surfaceBorder }
                 ]}
                 onPress={() => setSelectedPetFilter(pet.id)}
               >
@@ -297,7 +301,7 @@ export default function TabIndex() {
                 <Text 
                   variant="subhead" 
                   weight={isSelected ? 'semibold' : 'medium'}
-                  style={{ color: isSelected ? '#FFF' : theme.text }}
+                  style={{ color: isSelected ? theme.textInverse : theme.text }}
                 >
                   {pet.name}
                 </Text>
