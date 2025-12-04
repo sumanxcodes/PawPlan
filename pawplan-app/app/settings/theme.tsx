@@ -87,8 +87,8 @@ export default function ThemeScreen() {
         </View>
 
         {/* Use Device Settings Toggle */}
-        <View style={[styles.settingRow, { marginTop: spacing.xl }]}>
-          <View>
+        <View style={[styles.settingRowContainer, { marginTop: spacing.xl, backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}>
+          <View style={styles.settingTextContent}>
             <Text variant="body" weight="medium">Use device settings</Text>
             <Text variant="caption1" color="secondary">
               Match appearance to your device's Display & Brightness settings.
@@ -169,9 +169,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
+    // paddingHorizontal: spacing.sm, // Removed: handled by container
     backgroundColor: 'transparent',
     borderRadius: radius.lg,
+  },
+  settingRowContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md, // Added padding
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  },
+  settingTextContent: {
+    flex: 1, // Allow text to take space
+    marginRight: spacing.md,
   },
   themePreviewContent: {
     flex: 1,
