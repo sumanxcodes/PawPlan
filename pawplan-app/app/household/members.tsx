@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '../../../lib/supabase';
-import { useHousehold } from '../../../lib/household-context';
-import { useTheme, spacing, radius } from '../../../lib/theme';
-import { Text, Icon, Card } from '../../../components/ui';
+import { supabase } from '../../lib/supabase';
+import { useHousehold } from '../../lib/household-context';
+import { useTheme, spacing, radius } from '../../lib/theme';
+import { Text, Icon, Card } from '../../components/ui';
 
 export default function MembersScreen() {
   const router = useRouter();

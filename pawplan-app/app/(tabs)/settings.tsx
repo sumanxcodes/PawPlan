@@ -167,7 +167,7 @@ export default function SettingsScreen() {
               {/* Members Navigation */}
               <TouchableOpacity 
                 style={styles.settingRow}
-                onPress={() => router.push('/(tabs)/settings/members')}
+                onPress={() => router.push('/household/members')}
               >
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: theme.accentBackground }]}>
