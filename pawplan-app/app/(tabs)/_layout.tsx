@@ -2,7 +2,8 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, spacing, radius } from '../../lib/theme';
 import { Platform, StyleSheet, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+
+import CustomTabBar from '../../components/CustomTabBar'; // Import custom tab bar
 
 export default function TabLayout() {
   const { theme, isDark } = useTheme();
@@ -12,58 +13,13 @@ export default function TabLayout() {
   return (
     <Tabs
       key={isDark ? 'dark' : 'light'}
+      tabBar={props => <CustomTabBar {...props} />} // Use custom tab bar
       screenOptions={{
-        // Apple HIG: Use appropriate tint colors
+        headerShown: false,
+        // The rest of the screenOptions can be simplified as CustomTabBar handles appearance
+        // However, tabBarActiveTintColor and tabBarInactiveTintColor are still useful for icons in CustomTabBar
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
-        headerShown: false,
-        tabBarShowLabel: true,
-        tabBarStyle: {
-          position: 'absolute',
-          bottom: Platform.OS === 'ios' ? 20 : 10, // Increased bottom margin for floating effect
-          left: spacing.md,
-          right: spacing.md,
-          height: Platform.OS === 'ios' ? 70 : 60, // Slightly reduced height
-          borderRadius: radius.xl, // Rounded corners for floating card effect
-          paddingTop: 10,
-          paddingBottom: Platform.OS === 'ios' ? 15 : 10, // Adjusted padding
-          backgroundColor: 'transparent', // Crucial for blur
-          borderTopWidth: 0,
-          elevation: 0,
-        },
-        // Apple HIG: Liquid Glass background
-        tabBarBackground: () => (
-          <View style={[StyleSheet.absoluteFill, { borderRadius: radius.xl, overflow: 'hidden', marginHorizontal: spacing.md, marginBottom: Platform.OS === 'ios' ? 20 : 10 }]}>
-            <BlurView
-              intensity={Platform.OS === 'ios' ? 100 : 80}
-              tint={isDark ? 'dark' : 'light'}
-              style={StyleSheet.absoluteFill}
-            />
-            {/* Subtle tint overlay for Liquid Glass effect */}
-            <View 
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  backgroundColor: isDark 
-                    ? 'rgba(25, 25, 25, 0.6)' 
-                    : 'rgba(255, 255, 255, 0.75)',
-                }
-              ]} 
-            />
-          </View>
-        ),
-        // Apple HIG: Labels should be short, single words
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '500',
-          // Removed marginTop: 4, to center better
-        },
-        tabBarItemStyle: {
-          // Removed paddingTop: 4, to rely on tabBarStyle padding
-        },
-        tabBarIconStyle: {
-          marginBottom: 0,
-        },
       }}
     >
       <Tabs.Screen
