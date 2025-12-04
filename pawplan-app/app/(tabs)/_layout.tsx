@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../lib/theme';
+import { useTheme, spacing, radius } from '../../lib/theme';
 import { Platform, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 
@@ -20,20 +20,20 @@ export default function TabLayout() {
         tabBarShowLabel: true,
         tabBarStyle: {
           position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: Platform.OS === 'ios' ? 88 : 68,
+          bottom: Platform.OS === 'ios' ? 20 : 10, // Increased bottom margin for floating effect
+          left: spacing.md,
+          right: spacing.md,
+          height: Platform.OS === 'ios' ? 70 : 60, // Slightly reduced height
+          borderRadius: radius.xl, // Rounded corners for floating card effect
           paddingTop: 10,
-          paddingBottom: Platform.OS === 'ios' ? 34 : 10,
-          // Transparent to show Liquid Glass blur
-          backgroundColor: 'transparent',
+          paddingBottom: Platform.OS === 'ios' ? 15 : 10, // Adjusted padding
+          backgroundColor: 'transparent', // Crucial for blur
           borderTopWidth: 0,
           elevation: 0,
         },
         // Apple HIG: Liquid Glass background
         tabBarBackground: () => (
-          <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { borderRadius: radius.xl, overflow: 'hidden', marginHorizontal: spacing.md, marginBottom: Platform.OS === 'ios' ? 20 : 10 }]}>
             <BlurView
               intensity={Platform.OS === 'ios' ? 100 : 80}
               tint={isDark ? 'dark' : 'light'}
@@ -50,29 +50,16 @@ export default function TabLayout() {
                 }
               ]} 
             />
-            {/* Top border line */}
-            <View 
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: StyleSheet.hairlineWidth,
-                backgroundColor: isDark 
-                  ? 'rgba(255, 255, 255, 0.2)' 
-                  : 'rgba(0, 0, 0, 0.15)',
-              }}
-            />
           </View>
         ),
         // Apple HIG: Labels should be short, single words
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '500',
-          marginTop: 4,
+          // Removed marginTop: 4, to center better
         },
         tabBarItemStyle: {
-          paddingTop: 4,
+          // Removed paddingTop: 4, to rely on tabBarStyle padding
         },
         tabBarIconStyle: {
           marginBottom: 0,
