@@ -44,8 +44,8 @@ export async function registerForPushNotificationsAsync() {
 
   const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
   if (!projectId) {
-    console.log('Project ID not found');
-    // For development without EAS, getExpoPushTokenAsync might still work or we handle it
+    console.log('Project ID not found - skipping push token registration');
+    return null;
   }
 
   try {
