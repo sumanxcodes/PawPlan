@@ -46,6 +46,13 @@ export default function AddTaskScreen() {
   const [details, setDetails] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const getTimePeriod = (date: Date) => {
+    const hour = date.getHours();
+    if (hour >= 5 && hour < 12) return 'Morning ☀️';
+    if (hour >= 12 && hour < 17) return 'Afternoon ⛅';
+    return 'Evening 🌙';
+  };
+
   const togglePet = (petId: string) => {
     setSelectedPets(prev => 
       prev.includes(petId) 
@@ -85,7 +92,7 @@ export default function AddTaskScreen() {
       recurrenceRule.time = scheduledTime.toLocaleTimeString('en-US', { 
         hour: '2-digit', 
         minute: '2-digit',
-        hour12: true 
+        hour12: false 
       });
     }
 
@@ -310,6 +317,11 @@ export default function AddTaskScreen() {
                 </TouchableOpacity>
               )}
             </TouchableOpacity>
+            {scheduledTime && (
+              <Text variant="caption1" color="secondary" style={{ marginTop: 8, marginLeft: 4 }}>
+                Appears in: <Text weight="semibold">{getTimePeriod(scheduledTime)}</Text>
+              </Text>
+            )}
           </View>
 
           {/* Time Picker Modal (iOS) */}
