@@ -1,4 +1,5 @@
-import { View, StyleSheet, TouchableOpacity, Alert, ScrollView, ActionSheetIOS, Platform } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, StyleSheet, TouchableOpacity, Alert, ScrollView, ActionSheetIOS, Platform, Image } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useHousehold } from '../../lib/household-context';
@@ -10,6 +11,33 @@ import * as Haptics from 'expo-haptics';
 export default function SettingsScreen() {
   const { theme, isDark, themeMode, setTheme } = useTheme();
   const { household, membership, refreshHousehold } = useHousehold();
+  const [members, setMembers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (household?.id) {
+      const fetchMembers = async () => {
+        const { data, error } = await supabase
+          .from('household_members')
+          .select(`
+            role,
+            profiles (
+              full_name,
+              avatar_url,
+              email
+            )
+          `)
+          .eq('household_id', household.id)
+          .order('joined_at', { ascending: true });
+        
+        if (error) {
+          console.error('Error fetching members:', error);
+        } else {
+          setMembers(data || []);
+        }
+      };
+      fetchMembers();
+    }
+  }, [household?.id]);
 
   async function handleCopyCode() {
     if (household?.invite_code) {
@@ -222,6 +250,45 @@ export default function SettingsScreen() {
           </View>
         )}
 
+        {/* Members Section */}
+        {members.length > 0 && (
+          <View style={styles.section}>
+            <Text variant="footnote" color="secondary" weight="semibold" style={styles.sectionTitle}>
+              MEMBERS ({members.length})
+            </Text>
+            <Card variant="elevated">
+              {members.map((member, index) => (
+                <View key={index}>
+                  <View style={styles.memberRow}>
+                    <View style={styles.memberLeft}>
+                      {member.profiles?.avatar_url ? (
+                        <Image source={{ uri: member.profiles.avatar_url }} style={styles.memberAvatar} />
+                      ) : (
+                        <View style={[styles.memberAvatar, { backgroundColor: theme.inputBackground, justifyContent: 'center', alignItems: 'center' }]}>
+                          <Text weight="bold" color="secondary">
+                            {member.profiles?.full_name?.[0] || member.profiles?.email?.[0] || '?'}
+                          </Text>
+                        </View>
+                      )}
+                      <View>
+                        <Text variant="body" weight="medium">
+                          {member.profiles?.full_name || member.profiles?.email || 'Unknown User'}
+                        </Text>
+                        <Text variant="caption1" color="secondary" style={{ textTransform: 'capitalize' }}>
+                          {member.role}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                  {index < members.length - 1 && (
+                    <View style={[styles.settingDivider, { backgroundColor: theme.separator }]} />
+                  )}
+                </View>
+              ))}
+            </Card>
+          </View>
+        )}
+
         {/* Appearance Section */}
         <View style={styles.section}>
           <Text variant="footnote" color="secondary" weight="semibold" style={styles.sectionTitle}>
@@ -355,5 +422,21 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     marginLeft: 52,
     marginVertical: spacing.xs,
+  },
+  memberRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  memberLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  memberAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
 });
