@@ -98,7 +98,7 @@ export const lightTheme = {
 export const darkTheme: typeof lightTheme = {
   // Background colors
   background: palette.gray950,
-  backgroundSecondary: palette.gray900,
+  backgroundSecondary: palette.black, // Was gray900, changed to black for contrast
   backgroundTertiary: palette.gray800,
   
   // Surface colors (cards, modals)

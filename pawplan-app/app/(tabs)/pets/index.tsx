@@ -41,8 +41,28 @@ export default function PetsListScreen() {
     setRefreshing(false);
   };
 
+  const calculateAge = (birthDate: string) => {
+    if (!birthDate) return null;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    
+    if (age === 0) {
+      // Less than a year, show months
+      const months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+      return `${months}m old`;
+    }
+    
+    return `${age}y old`;
+  };
+
   const renderPetCard = ({ item }: { item: any }) => {
     const emoji = SPECIES_EMOJI[item.species?.toLowerCase()] || '🐾';
+    const age = calculateAge(item.birth_date);
     
     return (
       <Card 
@@ -59,10 +79,33 @@ export default function PetsListScreen() {
             )}
           </View>
           <View style={styles.petInfo}>
-            <Text variant="headline" weight="semibold">{item.name}</Text>
+            <View style={styles.headerRow}>
+              <Text variant="headline" weight="semibold">{item.name}</Text>
+              {item.sex && (
+                <Icon 
+                  name={item.sex === 'male' ? 'male' : item.sex === 'female' ? 'female' : 'paw'} 
+                  size={16} 
+                  color={item.sex === 'male' ? '#3B82F6' : item.sex === 'female' ? '#EC4899' : theme.textTertiary} 
+                />
+              )}
+            </View>
+            
             <Text variant="subhead" color="secondary" style={styles.petDetails}>
               {item.species}{item.breed ? ` · ${item.breed}` : ''}
             </Text>
+
+            <View style={styles.metaTags}>
+              {age && (
+                <View style={[styles.metaTag, { backgroundColor: theme.inputBackground }]}>
+                  <Text variant="caption2" color="secondary">{age}</Text>
+                </View>
+              )}
+              {item.weight_kg && (
+                <View style={[styles.metaTag, { backgroundColor: theme.inputBackground }]}>
+                  <Text variant="caption2" color="secondary">{item.weight_kg} kg</Text>
+                </View>
+              )}
+            </View>
           </View>
           <Icon name="chevron-forward" size={20} color={theme.textTertiary} />
         </View>
@@ -154,27 +197,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
   },
   avatarImage: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
   avatarEmoji: {
-    fontSize: 26,
+    fontSize: 32,
   },
   petInfo: {
     flex: 1,
+    gap: 2,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   petDetails: {
-    marginTop: 2,
     textTransform: 'capitalize',
+    marginBottom: 4,
+  },
+  metaTags: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  metaTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
   },
   emptyContainer: {
     flex: 1,
