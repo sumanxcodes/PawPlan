@@ -16,6 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
 import { useHousehold } from '../../../lib/household-context';
 import { Pet } from '../../../lib/types';
+import StreakBadge from '../../../components/StreakBadge';
+import { useStreaks } from '../../../lib/hooks/useStreaks';
+import { useTheme, spacing } from '../../../lib/theme';
 
 const SPECIES_OPTIONS = [
   { value: 'dog', label: 'Dog', emoji: '🐕' },
@@ -44,7 +47,10 @@ const COLOR_OPTIONS = [
 export default function PetDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { refreshHousehold } = useHousehold();
+  const { household, refreshHousehold } = useHousehold();
+  const { theme } = useTheme();
+  
+  const { data: streaks = [] } = useStreaks(household?.id, id);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -176,6 +182,24 @@ export default function PetDetailScreen() {
       </View>
 
       <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
+        {/* Streaks Section */}
+        {streaks.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.label}>Active Streaks</Text>
+            <View style={styles.streaksContainer}>
+              {streaks.map((streak) => (
+                <View key={streak.id} style={styles.streakItem}>
+                  <StreakBadge currentStreak={streak.current_streak} longestStreak={streak.longest_streak} />
+                  <View>
+                    <Text style={styles.streakText}>{streak.current_streak} Day Streak</Text>
+                    <Text style={styles.streakSubText}>Best: {streak.longest_streak}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Name */}
         <View style={styles.section}>
           <Text style={styles.label}>Name *</Text>
@@ -460,5 +484,30 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 40,
+  },
+  streaksContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  streakItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    minWidth: '45%',
+    gap: 8,
+  },
+  streakText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  streakSubText: {
+    fontSize: 12,
+    color: '#6B7280',
   },
 });

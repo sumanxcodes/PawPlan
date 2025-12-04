@@ -1,11 +1,15 @@
-import { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { useState, useCallback, useMemo, useRef } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, Dimensions, FlatList, Image } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, spacing, radius } from '../../lib/theme';
 import { Text, Icon, Card } from '../../components/ui';
+import StreakBadge from '../../components/StreakBadge';
 import { useHousehold } from '../../lib/household-context';
-import { Task, TaskType, ActivityLog } from '../../lib/types';
+import { Task, TaskType } from '../../lib/types';
+import { useStreaks } from '../../lib/hooks/useStreaks';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const TASK_TYPE_CONFIG: Record<TaskType, { icon: string; color: string }> = {
   food: { icon: 'restaurant', color: '#FF9500' },
@@ -20,26 +24,38 @@ interface TaskWithCompletion extends Task {
   completedCount: number;
 }
 
-export default function TodayScreen() {
-  const { theme } = useTheme();
+export default function TabIndex() {
+  const { theme, isDark } = useTheme();
   const { household, pets } = useHousehold();
   const [tasks, setTasks] = useState<TaskWithCompletion[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
+  const { data: streaks = [] } = useStreaks(household?.id);
+  const [userProfile, setUserProfile] = useState<{ avatar_url?: string } | null>(null);
+  const [selectedPetFilter, setSelectedPetFilter] = useState<string>('all');
+  const [weeklyProgress, setWeeklyProgress] = useState<boolean[]>(new Array(7).fill(false));
 
   const today = new Date();
-  const dateString = today.toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    month: 'long', 
-    day: 'numeric' 
-  });
-
+  
   // Get start of today in ISO format
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
+  // Get start of week (Monday)
+  const startOfWeek = new Date(todayStart);
+  const dayOfWeek = startOfWeek.getDay();
+  const diff = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+  startOfWeek.setDate(diff);
+
   const fetchTodayData = async () => {
     if (!household?.id) return;
+
+    // Fetch user profile for avatar
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).single();
+      if (profile) setUserProfile(profile);
+    }
 
     // Fetch active tasks
     const { data: tasksData, error: tasksError } = await supabase
@@ -47,27 +63,44 @@ export default function TodayScreen() {
       .select('*')
       .eq('household_id', household.id)
       .eq('is_active', true)
-      .in('frequency', ['daily', 'weekly', 'monthly']); // Show recurring tasks
+      .in('frequency', ['daily', 'weekly', 'monthly']);
 
     if (tasksError) {
       console.error('Error fetching tasks:', tasksError);
       return;
     }
 
-    // Fetch today's activity logs
+    // Fetch activity logs for the whole week
     const { data: logsData, error: logsError } = await supabase
       .from('activity_logs')
-      .select('task_id, pet_id')
+      .select('task_id, pet_id, completed_at')
       .eq('household_id', household.id)
-      .gte('completed_at', todayStart.toISOString());
+      .gte('completed_at', startOfWeek.toISOString());
 
     if (logsError) {
       console.error('Error fetching logs:', logsError);
     }
 
-    // Mark tasks as completed based on logs
+    // Calculate weekly progress
+    const progress = new Array(7).fill(false);
+    (logsData || []).forEach(log => {
+      const logDate = new Date(log.completed_at);
+      const dayIndex = logDate.getDay(); // 0=Sun, 1=Mon...
+      // Map to 0=Mon, 6=Sun
+      const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1;
+      if (adjustedIndex >= 0 && adjustedIndex < 7) {
+        progress[adjustedIndex] = true;
+      }
+    });
+    setWeeklyProgress(progress);
+
+    // Mark tasks as completed based on logs (filter for TODAY)
     const tasksWithCompletion = (tasksData || []).map(task => {
-      const taskLogs = (logsData || []).filter(log => log.task_id === task.id);
+      const taskLogs = (logsData || []).filter(log => {
+        const logTime = new Date(log.completed_at).getTime();
+        return log.task_id === task.id && logTime >= todayStart.getTime();
+      });
+      
       const completedPetIds = [...new Set(taskLogs.map(log => log.pet_id))];
       const allPetsCompleted = task.pet_ids.every((petId: string) => 
         completedPetIds.includes(petId)
@@ -141,79 +174,233 @@ export default function TodayScreen() {
     }
   };
 
-  const getPetNames = (petIds: string[]) => {
+  const getPetName = (petIds: string[]) => {
     if (!petIds || petIds.length === 0) return '';
-    const names = petIds
-      .map(id => pets.find(p => p.id === id)?.name)
-      .filter(Boolean);
-    if (names.length <= 2) return names.join(' & ');
-    return `${names[0]} + ${names.length - 1} more`;
+    const pet = pets.find(p => p.id === petIds[0]);
+    return pet?.name || '';
+  };
+
+  const getScheduledTime = (task: Task) => {
+    const time = task.recurrence_rule?.time;
+    if (time) {
+      const [hours, minutes] = time.split(':');
+      const date = new Date();
+      date.setHours(parseInt(hours), parseInt(minutes));
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+    return '';
   };
 
   const completedCount = tasks.filter(t => t.completedToday).length;
-  const pendingCount = tasks.filter(t => !t.completedToday).length;
+  const totalTasks = tasks.length;
+  const completionPercentage = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+
+  // Process streaks to get one unique streak per pet (highest current streak)
+  const uniqueStreaks = useMemo(() => {
+    const petStreaks = new Map<string, any>();
+    
+    streaks.forEach(streak => {
+      const current = petStreaks.get(streak.pet_id);
+      if (!current || streak.current_streak > current.current_streak) {
+        petStreaks.set(streak.pet_id, streak);
+      }
+    });
+    
+    return Array.from(petStreaks.values());
+  }, [streaks]);
+
+  // Sort and Filter tasks
+  const filteredTasks = useMemo(() => {
+    let result = [...tasks];
+    
+    // Filter by pet
+    if (selectedPetFilter !== 'all') {
+      result = result.filter(task => task.pet_ids.includes(selectedPetFilter));
+    }
+
+    return result.sort((a, b) => {
+      if (a.completedToday !== b.completedToday) {
+        return a.completedToday ? 1 : -1;
+      }
+      const timeA = a.recurrence_rule?.time;
+      const timeB = b.recurrence_rule?.time;
+      
+      if (timeA && timeB) {
+        return timeA.localeCompare(timeB);
+      }
+      return 0;
+    });
+  }, [tasks, selectedPetFilter]);
+
+  const groupedTasks = useMemo(() => {
+    const groups: Record<string, TaskWithCompletion[]> = {
+      Morning: [],
+      Afternoon: [],
+      Evening: []
+    };
+    
+    filteredTasks.forEach(task => {
+       const time = task.recurrence_rule?.time || '00:00';
+       const hour = parseInt(time.split(':')[0]);
+       
+       if (hour >= 5 && hour < 12) groups.Morning.push(task);
+       else if (hour >= 12 && hour < 17) groups.Afternoon.push(task);
+       else groups.Evening.push(task);
+    });
+    
+    return groups;
+  }, [filteredTasks]);
+
+  const getDateLabel = () => {
+    return today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundSecondary }]}>
-      <View style={[styles.header, { backgroundColor: theme.background }]}>
-        <Text variant="footnote" color="secondary" weight="medium">
-          {dateString.toUpperCase()}
-        </Text>
-        <Text variant="largeTitle" weight="bold">Today</Text>
-      </View>
-
       <ScrollView 
-        style={styles.content} 
+        style={styles.scrollView} 
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Quick Stats */}
-        <View style={styles.statsRow}>
-          <Card variant="filled" style={styles.statCard}>
-            <Icon name="paw" size={24} color={theme.text} />
-            <Text variant="title2" weight="bold" style={styles.statNumber}>
-              {pets.length}
-            </Text>
-            <Text variant="caption1" color="secondary">
-              {pets.length === 1 ? 'Pet' : 'Pets'}
-            </Text>
-          </Card>
-          <Card variant="filled" style={styles.statCard}>
-            <Icon name="checkmark-circle" size={24} color={theme.success} />
-            <Text variant="title2" weight="bold" style={styles.statNumber}>
-              {completedCount}
-            </Text>
-            <Text variant="caption1" color="secondary">
-              Done
-            </Text>
-          </Card>
-          <Card variant="filled" style={styles.statCard}>
-            <Icon name="time-outline" size={24} color={theme.warning} />
-            <Text variant="title2" weight="bold" style={styles.statNumber}>
-              {pendingCount}
-            </Text>
-            <Text variant="caption1" color="secondary">
-              Pending
-            </Text>
-          </Card>
+        {/* New Header Design */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+             <Text variant="caption1" weight="bold" style={{ color: theme.textSecondary, letterSpacing: 1 }}>
+               {getDateLabel()}
+             </Text>
+             <View style={styles.avatarContainer}>
+               {userProfile?.avatar_url ? (
+                 <Image source={{ uri: userProfile.avatar_url }} style={styles.avatar} />
+               ) : (
+                 <View style={[styles.avatar, { backgroundColor: theme.accent }]}>
+                   <Text style={{ color: '#FFF' }}>U</Text>
+                 </View>
+               )}
+             </View>
+          </View>
+          
+          <View style={styles.headerTitleRow}>
+            <Text variant="largeTitle" weight="bold">Today</Text>
+          </View>
         </View>
 
-        {/* Today's Tasks */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text variant="headline" weight="semibold">
-              Today's Tasks
+        {/* Pet Filters */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.petFilterContainer}
+        >
+          <TouchableOpacity
+            style={[
+              styles.petFilterPill, 
+              selectedPetFilter === 'all' ? { backgroundColor: '#FFFFFF' } : { backgroundColor: 'rgba(255,255,255,0.6)' }
+            ]}
+            onPress={() => setSelectedPetFilter('all')}
+          >
+            <Text variant="subhead" weight={selectedPetFilter === 'all' ? 'semibold' : 'medium'}>
+              All Pets
             </Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/tasks')}>
-              <Text variant="subhead" style={{ color: theme.accent }}>See All</Text>
-            </TouchableOpacity>
+          </TouchableOpacity>
+          
+          {pets.map((pet) => {
+            const isSelected = selectedPetFilter === pet.id;
+            return (
+              <TouchableOpacity
+                key={pet.id}
+                style={[
+                  styles.petFilterPill,
+                  isSelected ? { backgroundColor: theme.accent } : { backgroundColor: '#FFFFFF' }
+                ]}
+                onPress={() => setSelectedPetFilter(pet.id)}
+              >
+                {pet.avatar_url ? (
+                  <Image source={{ uri: pet.avatar_url }} style={styles.petFilterAvatar} />
+                ) : (
+                  <View style={styles.petFilterAvatarPlaceholder}>
+                     <Text style={{ fontSize: 10 }}>{pet.name[0]}</Text>
+                  </View>
+                )}
+                <Text 
+                  variant="subhead" 
+                  weight={isSelected ? 'semibold' : 'medium'}
+                  style={{ color: isSelected ? '#FFF' : theme.text }}
+                >
+                  {pet.name}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
+
+        {/* Household Streak Card */}
+        <View style={[styles.goalsCard, { backgroundColor: theme.surface }]}>
+          <View style={styles.cardHeaderRow}>
+             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+               <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFF4E5', justifyContent: 'center', alignItems: 'center' }}>
+                 <Icon name="flame" size={20} color="#FF9500" />
+               </View>
+               <View>
+                 <Text variant="caption2" color="secondary" weight="bold" style={{letterSpacing: 0.5}}>HOUSEHOLD</Text>
+                 <Text variant="caption2" style={{color: '#FF9500', letterSpacing: 0.5}} weight="bold">STREAK</Text>
+               </View>
+             </View>
+             
+             {/* Weekly Tracker */}
+             <View style={styles.weeklyTracker}>
+               {['M','T','W','T','F','S','S'].map((day, i) => {
+                  const isCompleted = weeklyProgress[i];
+                  const isTodayIndex = (today.getDay() === 0 ? 6 : today.getDay() - 1) === i;
+                  
+                  return (
+                  <View key={i} style={{ alignItems: 'center', gap: 4 }}>
+                     <View style={[
+                        styles.weekDayCircle, 
+                        isCompleted && { backgroundColor: '#FF9500', borderColor: '#FF9500' },
+                        !isCompleted && isTodayIndex && { borderColor: theme.accent, borderWidth: 2 }, // Highlight today if not done
+                        !isCompleted && !isTodayIndex && { borderColor: '#E5E7EB' }
+                     ]}>
+                        {isCompleted && <Icon name="checkmark" size={10} color="#FFF" />}
+                     </View>
+                     <Text variant="caption2" color="secondary" style={{fontSize: 10}}>{day}</Text>
+                  </View>
+               )})}
+             </View>
           </View>
 
-          {tasks.length === 0 ? (
-            <Card variant="elevated" style={styles.emptyCard}>
+          <View style={styles.streakMainStat}>
+             <Text style={{ fontSize: 42, fontWeight: 'bold', color: theme.text }}>
+                {uniqueStreaks.length > 0 ? Math.max(...uniqueStreaks.map(s => s.current_streak)) : 0}
+             </Text>
+             <Text variant="title3" color="secondary" style={{ marginBottom: 6, marginLeft: 8 }}>days</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.cardFooter}>
+             <Text variant="caption2" color="secondary" weight="bold" style={{letterSpacing: 0.5}}>TODAY'S TASKS</Text>
+             <Text variant="caption2" weight="bold">{completionPercentage}%</Text>
+          </View>
+          
+          <View style={[styles.progressBarBg, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6', marginTop: 8 }]}>
+            <View 
+              style={[
+                styles.progressBarFill, 
+                { 
+                  backgroundColor: theme.accent,
+                  width: `${completionPercentage}%`,
+                }
+              ]} 
+            />
+          </View>
+        </View>
+
+        {/* Tasks List Grouped by Time */}
+        <View style={styles.section}>
+          {filteredTasks.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: theme.surface }]}>
               <View style={[styles.emptyIcon, { backgroundColor: theme.accentBackground }]}>
                 <Icon name="checkbox-outline" size={32} color={theme.textSecondary} />
               </View>
@@ -232,108 +419,102 @@ export default function TodayScreen() {
                   Add Task
                 </Text>
               </TouchableOpacity>
-            </Card>
+            </View>
           ) : (
-            <View style={styles.tasksList}>
-              {tasks.map((task) => {
-                const typeConfig = task.task_type 
-                  ? TASK_TYPE_CONFIG[task.task_type] 
-                  : TASK_TYPE_CONFIG.other;
-                const isCompleting = completing === task.id;
+            <View style={{ gap: 24 }}>
+              {(['Morning', 'Afternoon', 'Evening'] as const).map((period) => {
+                const tasksInPeriod = groupedTasks[period];
+                if (tasksInPeriod.length === 0) return null;
+
+                const periodIcon = period === 'Morning' ? 'sunny' : period === 'Afternoon' ? 'partly-sunny' : 'moon';
 
                 return (
-                  <Card 
-                    key={task.id} 
-                    variant="elevated" 
-                    style={[
-                      styles.taskCard,
-                      task.completedToday && styles.taskCardCompleted,
-                    ]}
-                  >
-                    <TouchableOpacity
-                      style={styles.taskRow}
-                      onPress={() => router.push(`/(tabs)/tasks/${task.id}`)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.taskIcon, { backgroundColor: typeConfig.color + '20' }]}>
-                        <Icon name={typeConfig.icon as any} size={22} color={typeConfig.color} />
-                      </View>
-                      <View style={styles.taskInfo}>
-                        <Text 
-                          variant="headline" 
-                          weight="semibold" 
-                          numberOfLines={1}
-                          style={task.completedToday && { opacity: 0.6 }}
-                        >
-                          {task.title}
+                  <View key={period}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                        <Icon name={periodIcon} size={18} color={theme.textSecondary} />
+                        <Text variant="caption1" weight="bold" color="secondary" style={{textTransform: 'uppercase', letterSpacing: 1}}>
+                          {period}
                         </Text>
-                        <Text variant="caption1" color="secondary" numberOfLines={1}>
-                          {getPetNames(task.pet_ids)}
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={[
-                          styles.completeButton,
-                          { 
-                            backgroundColor: task.completedToday 
-                              ? theme.success + '20' 
-                              : theme.accentBackground,
-                            borderColor: task.completedToday 
-                              ? theme.success 
-                              : theme.surfaceBorder,
-                          },
-                        ]}
-                        onPress={() => handleQuickComplete(task)}
-                        disabled={task.completedToday || isCompleting}
-                      >
-                        {isCompleting ? (
-                          <Icon name="hourglass-outline" size={20} color={theme.textSecondary} />
-                        ) : (
-                          <Icon 
-                            name={task.completedToday ? 'checkmark' : 'checkmark'} 
-                            size={20} 
-                            color={task.completedToday ? theme.success : theme.textTertiary} 
-                          />
-                        )}
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  </Card>
+                    </View>
+                    
+                    <View style={styles.tasksList}>
+                      {tasksInPeriod.map((task) => {
+                        const typeConfig = task.task_type 
+                          ? TASK_TYPE_CONFIG[task.task_type] 
+                          : TASK_TYPE_CONFIG.other;
+                        const isCompleting = completing === task.id;
+                        const petName = getPetName(task.pet_ids);
+                        const time = getScheduledTime(task);
+
+                        return (
+                          <TouchableOpacity
+                            key={task.id}
+                            style={[styles.taskCard, { backgroundColor: theme.surface }]}
+                            onPress={() => router.push(`/(tabs)/tasks/${task.id}`)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={[styles.taskIcon, { backgroundColor: typeConfig.color }]}>
+                              <Icon name={typeConfig.icon as any} size={22} color="#FFFFFF" />
+                            </View>
+                            <View style={styles.taskInfo}>
+                              <Text 
+                                variant="body" 
+                                weight="semibold" 
+                                numberOfLines={1}
+                                style={[
+                                  task.completedToday && styles.taskTitleCompleted,
+                                ]}
+                              >
+                                {task.title}
+                              </Text>
+                              <View style={styles.taskMeta}>
+                                {petName && (
+                                  <View style={[styles.petBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)' }]}>
+                                    <Text variant="caption2" weight="semibold" style={{ color: theme.textSecondary }}>
+                                      {petName.toUpperCase()}
+                                    </Text>
+                                  </View>
+                                )}
+                                {time && (
+                                  <View style={styles.timeContainer}>
+                                    <Icon name="time-outline" size={12} color={theme.textTertiary} />
+                                    <Text variant="caption1" color="tertiary">{time}</Text>
+                                  </View>
+                                )}
+                              </View>
+                            </View>
+                            <TouchableOpacity
+                              style={[
+                                styles.completeButton,
+                                task.completedToday && styles.completeButtonDone,
+                                { borderColor: task.completedToday ? theme.success : theme.surfaceBorder },
+                              ]}
+                              onPress={() => handleQuickComplete(task)}
+                              disabled={task.completedToday || isCompleting}
+                            >
+                              {isCompleting ? (
+                                <Icon name="hourglass-outline" size={22} color={theme.textSecondary} />
+                              ) : (
+                                <Icon 
+                                  name={task.completedToday ? 'checkmark' : 'checkmark'} 
+                                  size={22} 
+                                  color={task.completedToday ? theme.success : theme.textTertiary} 
+                                />
+                              )}
+                            </TouchableOpacity>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
                 );
               })}
             </View>
           )}
         </View>
 
-        {/* Pets Overview */}
-        {pets.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text variant="headline" weight="semibold">
-                Your Pets
-              </Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/pets')}>
-                <Text variant="subhead" style={{ color: theme.accent }}>See All</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.petsList}>
-              {pets.slice(0, 4).map((pet) => (
-                <TouchableOpacity 
-                  key={pet.id}
-                  onPress={() => router.push(`/(tabs)/pets/${pet.id}`)}
-                >
-                  <Card variant="elevated" style={styles.petMiniCard}>
-                    <View style={[styles.petAvatar, { backgroundColor: pet.color_code || theme.accentBackground }]}>
-                      <Text style={styles.petEmoji}>
-                        {pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐱' : '🐾'}
-                      </Text>
-                    </View>
-                    <Text variant="subhead" weight="medium">{pet.name}</Text>
-                  </Card>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
+        {/* Bottom Spacing for Tab Bar */}
+        <View style={{ height: 100 }} />
       </ScrollView>
     </View>
   );
@@ -343,34 +524,114 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: 60,
-    paddingBottom: spacing.lg,
-    paddingHorizontal: spacing.xl,
-  },
-  content: {
+  scrollView: {
     flex: 1,
   },
   contentContainer: {
-    padding: spacing.lg,
-    paddingBottom: spacing['4xl'],
+    paddingTop: 60,
   },
-  statsRow: {
+  header: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.sm,
+  },
+  headerTop: {
     flexDirection: 'row',
-    gap: spacing.md,
-    marginBottom: spacing['2xl'],
-  },
-  statCard: {
-    flex: 1,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.lg,
-  },
-  statNumber: {
-    marginTop: spacing.sm,
     marginBottom: spacing.xs,
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  avatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButton: {
+    padding: spacing.xs,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: radius.full,
+  },
+  petFilterContainer: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  petFilterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    gap: 8,
+  },
+  petFilterAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+  },
+  petFilterAvatarPlaceholder: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#EEE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  goalsCard: {
+    marginHorizontal: spacing.lg,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+  },
+  goalsContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  goalsLeft: {
+    flex: 1,
+  },
+  goalsLabel: {
+    letterSpacing: 1,
+    marginBottom: spacing.sm,
+  },
+  percentageRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: spacing.md,
+  },
+  completedText: {
+    marginLeft: spacing.xs,
+  },
+  progressBarBg: {
+    height: 6,
+    borderRadius: 3,
+    width: '80%',
+  },
+  progressBarFill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  goalsIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   section: {
-    marginBottom: spacing['2xl'],
+    paddingHorizontal: spacing.lg,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -381,6 +642,7 @@ const styles = StyleSheet.create({
   emptyCard: {
     alignItems: 'center',
     paddingVertical: spacing['3xl'],
+    borderRadius: radius.xl,
   },
   emptyIcon: {
     width: 64,
@@ -404,25 +666,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   tasksList: {
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   taskCard: {
-    padding: 0,
-    overflow: 'hidden',
-  },
-  taskCardCompleted: {
-    opacity: 0.7,
-  },
-  taskRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
+    borderRadius: radius.xl,
     gap: spacing.md,
   },
   taskIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
+    width: 48,
+    height: 48,
+    borderRadius: radius.lg,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -430,34 +686,67 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.xs,
   },
-  completeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
+  taskTitleCompleted: {
+    textDecorationLine: 'line-through',
+    opacity: 0.6,
   },
-  petsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  petMiniCard: {
+  taskMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
   },
-  petAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  petBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  completeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+  },
+  completeButtonDone: {
+    backgroundColor: 'transparent',
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  weeklyTracker: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  weekDayCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  petEmoji: {
-    fontSize: 16,
+  streakMainStat: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginBottom: spacing.md,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
 });

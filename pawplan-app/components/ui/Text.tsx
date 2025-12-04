@@ -1,4 +1,4 @@
-import { Text as RNText, TextStyle, StyleSheet, Platform } from 'react-native';
+import { Text as RNText, TextStyle, StyleSheet, Platform, StyleProp } from 'react-native';
 import { useTheme, typography } from '../../lib/theme';
 import { ReactNode } from 'react';
 
@@ -8,7 +8,7 @@ interface TextProps {
   weight?: 'regular' | 'medium' | 'semibold' | 'bold';
   color?: 'primary' | 'secondary' | 'tertiary' | 'inverse' | 'accent' | 'error' | 'success';
   align?: 'left' | 'center' | 'right';
-  style?: TextStyle;
+  style?: StyleProp<TextStyle>;
   numberOfLines?: number;
 }
 

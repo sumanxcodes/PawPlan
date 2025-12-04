@@ -1,28 +1,81 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../lib/theme';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 
 export default function TabLayout() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   
+  // Apple HIG: Tab bars use Liquid Glass - translucent with content peeking through
+  // Prefer filled symbols for selected state, outline for unselected
   return (
     <Tabs
+      key={isDark ? 'dark' : 'light'}
       screenOptions={{
-        tabBarActiveTintColor: theme.tint,
-        tabBarInactiveTintColor: theme.tintInactive,
+        // Apple HIG: Use appropriate tint colors
+        tabBarActiveTintColor: theme.accent,
+        tabBarInactiveTintColor: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
         headerShown: false,
+        tabBarShowLabel: true,
         tabBarStyle: {
-          backgroundColor: theme.tabBar,
-          borderTopColor: theme.tabBarBorder,
-          borderTopWidth: 0.5,
-          paddingTop: 8,
-          height: Platform.OS === 'ios' ? 88 : 64,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: Platform.OS === 'ios' ? 88 : 68,
+          paddingTop: 10,
+          paddingBottom: Platform.OS === 'ios' ? 34 : 10,
+          // Transparent to show Liquid Glass blur
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
         },
+        // Apple HIG: Liquid Glass background
+        tabBarBackground: () => (
+          <View style={StyleSheet.absoluteFill}>
+            <BlurView
+              intensity={Platform.OS === 'ios' ? 100 : 80}
+              tint={isDark ? 'dark' : 'light'}
+              style={StyleSheet.absoluteFill}
+            />
+            {/* Subtle tint overlay for Liquid Glass effect */}
+            <View 
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: isDark 
+                    ? 'rgba(25, 25, 25, 0.6)' 
+                    : 'rgba(255, 255, 255, 0.75)',
+                }
+              ]} 
+            />
+            {/* Top border line */}
+            <View 
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: StyleSheet.hairlineWidth,
+                backgroundColor: isDark 
+                  ? 'rgba(255, 255, 255, 0.2)' 
+                  : 'rgba(0, 0, 0, 0.15)',
+              }}
+            />
+          </View>
+        ),
+        // Apple HIG: Labels should be short, single words
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '500',
-          marginTop: 2,
+          marginTop: 4,
+        },
+        tabBarItemStyle: {
+          paddingTop: 4,
+        },
+        tabBarIconStyle: {
+          marginBottom: 0,
         },
       }}
     >
@@ -30,10 +83,11 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Today',
+          // Apple HIG: Prefer filled symbols for consistency
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? 'today' : 'today-outline'} 
-              size={24} 
+              size={26} 
               color={color} 
             />
           ),
@@ -46,7 +100,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? 'calendar' : 'calendar-outline'} 
-              size={24} 
+              size={26} 
               color={color} 
             />
           ),
@@ -60,10 +114,16 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? 'checkbox' : 'checkbox-outline'} 
-              size={24} 
+              size={26} 
               color={color} 
             />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="activities"
+        options={{
+          href: null, // Hidden - accessed from Today screen
         }}
       />
       <Tabs.Screen
@@ -74,7 +134,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? 'paw' : 'paw-outline'} 
-              size={24} 
+              size={26} 
               color={color} 
             />
           ),
@@ -87,7 +147,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? 'settings' : 'settings-outline'} 
-              size={24} 
+              size={26} 
               color={color} 
             />
           ),
