@@ -72,25 +72,6 @@ export default function SettingsScreen() {
     }
   }
 
-  function handleThemeChange() {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Cancel', 'Light', 'Dark', 'System'],
-          cancelButtonIndex: 0,
-          title: 'Choose Theme',
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 1) setTheme('light');
-          else if (buttonIndex === 2) setTheme('dark');
-          else if (buttonIndex === 3) setTheme('system');
-        }
-      );
-    } else {
-      setTheme(themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system');
-    }
-  }
-
   async function handleSignOut() {
     const confirmSignOut = async () => {
       await supabase.auth.signOut();
@@ -207,16 +188,16 @@ export default function SettingsScreen() {
           <Card variant="elevated">
             <TouchableOpacity 
               style={styles.settingRow}
-              onPress={handleThemeChange}
+              onPress={() => router.push('/settings/theme')}
             >
               <View style={styles.settingLeft}>
                 <View style={[styles.iconContainer, { backgroundColor: theme.accentBackground }]}>
-                  <Icon name={isDark ? 'moon' : 'sunny'} size={20} color={theme.text} />
+                  <Icon name="color-palette" size={20} color={theme.text} />
                 </View>
                 <Text variant="body">Theme</Text>
               </View>
               <View style={styles.settingRight}>
-                <Text variant="body" color="secondary">{getThemeLabel()}</Text>
+                <Text variant="body" color="secondary">{themeMode === 'system' ? 'System' : themeMode === 'light' ? 'Light' : 'Dark'}</Text>
                 <Icon name="chevron-forward" size={18} color={theme.textTertiary} />
               </View>
             </TouchableOpacity>

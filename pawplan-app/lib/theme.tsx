@@ -68,6 +68,9 @@ export const lightTheme = {
   warning: palette.warning,
   error: palette.error,
   
+  // Pure colors directly exposed
+  white: palette.white,
+
   // Specific components
   tabBar: palette.white,
   tabBarBorder: palette.gray200,
@@ -126,6 +129,9 @@ export const darkTheme: typeof lightTheme = {
   warning: palette.warning,
   error: palette.error,
   
+  // Pure colors directly exposed
+  white: palette.white,
+
   // Specific components
   tabBar: palette.gray900,
   tabBarBorder: palette.gray800,
