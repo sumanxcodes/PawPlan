@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Alert, ScrollView, ActionSheetIOS, Platform, Image } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Alert, ScrollView, ActionSheetIOS, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useHousehold } from '../../lib/household-context';
@@ -11,33 +10,6 @@ import * as Haptics from 'expo-haptics';
 export default function SettingsScreen() {
   const { theme, isDark, themeMode, setTheme } = useTheme();
   const { household, membership, refreshHousehold } = useHousehold();
-  const [members, setMembers] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (household?.id) {
-      const fetchMembers = async () => {
-        const { data, error } = await supabase
-          .from('household_members')
-          .select(`
-            role,
-            profiles (
-              full_name,
-              avatar_url,
-              email
-            )
-          `)
-          .eq('household_id', household.id)
-          .order('joined_at', { ascending: true });
-        
-        if (error) {
-          console.error('Error fetching members:', error);
-        } else {
-          setMembers(data || []);
-        }
-      };
-      fetchMembers();
-    }
-  }, [household?.id]);
 
   async function handleCopyCode() {
     if (household?.invite_code) {
@@ -62,44 +34,16 @@ export default function SettingsScreen() {
         if (!user || !household) return;
 
         if (isOwner) {
-          // Owner: Delete all related data, then the household
-          // Delete tasks first
-          await supabase
-            .from('tasks')
-            .delete()
-            .eq('household_id', household.id);
-
-          // Delete pets
-          await supabase
-            .from('pets')
-            .delete()
-            .eq('household_id', household.id);
-
-          // Delete all household members
-          await supabase
-            .from('household_members')
-            .delete()
-            .eq('household_id', household.id);
-
-          // Delete the household
-          const { error } = await supabase
-            .from('households')
-            .delete()
-            .eq('id', household.id);
-
+          await supabase.from('tasks').delete().eq('household_id', household.id);
+          await supabase.from('pets').delete().eq('household_id', household.id);
+          await supabase.from('household_members').delete().eq('household_id', household.id);
+          const { error } = await supabase.from('households').delete().eq('id', household.id);
           if (error) throw error;
         } else {
-          // Member: Just remove themselves from household_members
-          const { error } = await supabase
-            .from('household_members')
-            .delete()
-            .eq('household_id', household.id)
-            .eq('user_id', user.id);
-
+          const { error } = await supabase.from('household_members').delete().eq('household_id', household.id).eq('user_id', user.id);
           if (error) throw error;
         }
 
-        // Refresh household context and redirect to onboarding
         await refreshHousehold();
         router.replace('/(onboarding)');
       } catch (error: any) {
@@ -117,19 +61,13 @@ export default function SettingsScreen() {
           message: message,
         },
         (buttonIndex) => {
-          if (buttonIndex === 1) {
-            confirmAction();
-          }
+          if (buttonIndex === 1) confirmAction();
         }
       );
     } else {
       Alert.alert(title, message, [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: title,
-          style: 'destructive',
-          onPress: confirmAction,
-        },
+        { text: title, style: 'destructive', onPress: confirmAction },
       ]);
     }
   }
@@ -149,12 +87,15 @@ export default function SettingsScreen() {
         }
       );
     } else {
-      // Android: cycle through options
       setTheme(themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system');
     }
   }
 
   async function handleSignOut() {
+    const confirmSignOut = async () => {
+      await supabase.auth.signOut();
+    };
+
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -163,22 +104,14 @@ export default function SettingsScreen() {
           cancelButtonIndex: 0,
           title: 'Are you sure you want to sign out?',
         },
-        async (buttonIndex) => {
-          if (buttonIndex === 1) {
-            await supabase.auth.signOut();
-          }
+        (buttonIndex) => {
+          if (buttonIndex === 1) confirmSignOut();
         }
       );
     } else {
       Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.auth.signOut();
-          },
-        },
+        { text: 'Sign Out', style: 'destructive', onPress: confirmSignOut },
       ]);
     }
   }
@@ -231,6 +164,22 @@ export default function SettingsScreen() {
 
               <View style={[styles.divider, { backgroundColor: theme.separator }]} />
 
+              {/* Members Navigation */}
+              <TouchableOpacity 
+                style={styles.settingRow}
+                onPress={() => router.push('/(tabs)/settings/members')}
+              >
+                <View style={styles.settingLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: theme.accentBackground }]}>
+                    <Icon name="people" size={20} color={theme.text} />
+                  </View>
+                  <Text variant="body">Manage Members</Text>
+                </View>
+                <Icon name="chevron-forward" size={18} color={theme.textTertiary} />
+              </TouchableOpacity>
+
+              <View style={[styles.divider, { backgroundColor: theme.separator }]} />
+
               <TouchableOpacity onPress={handleLeaveHousehold} style={styles.settingRow}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: '#FEE2E2' }]}>
@@ -246,45 +195,6 @@ export default function SettingsScreen() {
                 </View>
                 <Icon name="chevron-forward" size={18} color={theme.textTertiary} />
               </TouchableOpacity>
-            </Card>
-          </View>
-        )}
-
-        {/* Members Section */}
-        {members.length > 0 && (
-          <View style={styles.section}>
-            <Text variant="footnote" color="secondary" weight="semibold" style={styles.sectionTitle}>
-              MEMBERS ({members.length})
-            </Text>
-            <Card variant="elevated">
-              {members.map((member, index) => (
-                <View key={index}>
-                  <View style={styles.memberRow}>
-                    <View style={styles.memberLeft}>
-                      {member.profiles?.avatar_url ? (
-                        <Image source={{ uri: member.profiles.avatar_url }} style={styles.memberAvatar} />
-                      ) : (
-                        <View style={[styles.memberAvatar, { backgroundColor: theme.inputBackground, justifyContent: 'center', alignItems: 'center' }]}>
-                          <Text weight="bold" color="secondary">
-                            {member.profiles?.full_name?.[0] || member.profiles?.email?.[0] || '?'}
-                          </Text>
-                        </View>
-                      )}
-                      <View>
-                        <Text variant="body" weight="medium">
-                          {member.profiles?.full_name || member.profiles?.email || 'Unknown User'}
-                        </Text>
-                        <Text variant="caption1" color="secondary" style={{ textTransform: 'capitalize' }}>
-                          {member.role}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                  {index < members.length - 1 && (
-                    <View style={[styles.settingDivider, { backgroundColor: theme.separator }]} />
-                  )}
-                </View>
-              ))}
             </Card>
           </View>
         )}
@@ -417,26 +327,5 @@ const styles = StyleSheet.create({
   },
   appInfo: {
     paddingVertical: spacing['3xl'],
-  },
-  settingDivider: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 52,
-    marginVertical: spacing.xs,
-  },
-  memberRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
-  memberLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  memberAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
   },
 });
