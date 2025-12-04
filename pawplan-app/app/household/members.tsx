@@ -129,7 +129,7 @@ export default function MembersScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundSecondary }]}>
       <View style={[styles.header, { backgroundColor: theme.background }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace('/(tabs)/settings')} style={styles.backButton}>
           <Icon name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <Text variant="headline" weight="semibold">Household Members</Text>
