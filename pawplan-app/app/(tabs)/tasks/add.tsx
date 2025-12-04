@@ -44,7 +44,6 @@ export default function AddTaskScreen() {
   
   const [scheduledTime, setScheduledTime] = useState<Date | null>(null);
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
-  const [dayOfMonth, setDayOfMonth] = useState<string>('');
 
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -91,17 +90,9 @@ export default function AddTaskScreen() {
       return;
     }
 
-    // Validation for specific frequencies
-    if (frequency === 'monthly') {
-      const day = parseInt(dayOfMonth);
-      if (isNaN(day) || day < 1 || day > 31) {
-        Alert.alert('Error', 'Please enter a valid day of month (1-31)');
-        return;
-      }
-    }
-
-    if (frequency === 'once' && !scheduledDate) {
-      Alert.alert('Error', 'Please select a date for one-time task');
+    // Validation: Date is required for Monthly and Once
+    if ((frequency === 'monthly' || frequency === 'once') && !scheduledDate) {
+      Alert.alert('Error', 'Please select a start date');
       return;
     }
 
@@ -119,8 +110,8 @@ export default function AddTaskScreen() {
     }
 
     // Add Frequency specific rules
-    if (frequency === 'monthly') {
-      recurrenceRule.day_of_month = parseInt(dayOfMonth);
+    if (frequency === 'monthly' && scheduledDate) {
+      recurrenceRule.day_of_month = scheduledDate.getDate();
     } else if (frequency === 'once' && scheduledDate) {
       // Store date as YYYY-MM-DD
       recurrenceRule.date = scheduledDate.toISOString().split('T')[0];
@@ -157,59 +148,56 @@ export default function AddTaskScreen() {
         </Text>
         
         <View style={{ gap: spacing.md }}>
-          {/* Date Picker for One-time */}
-          {frequency === 'once' && (
-            <TouchableOpacity
-              style={[styles.input, styles.pickerButton, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Icon name="calendar-outline" size={20} color={theme.textSecondary} />
-              <Text variant="body" style={{ color: scheduledDate ? theme.text : theme.textTertiary, flex: 1 }}>
-                {scheduledDate ? scheduledDate.toLocaleDateString() : 'Select Date'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Day of Month for Monthly */}
-          {frequency === 'monthly' && (
+          {/* Date Picker for Monthly or One-time */}
+          {(frequency === 'once' || frequency === 'monthly') && (
             <View>
-              <Text variant="caption1" color="secondary" style={{ marginBottom: 4 }}>Day of Month (1-31)</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder, color: theme.text }]}
-                placeholder="e.g. 15"
-                placeholderTextColor={theme.textTertiary}
-                value={dayOfMonth}
-                onChangeText={setDayOfMonth}
-                keyboardType="numeric"
-                maxLength={2}
-              />
+              <Text variant="caption1" color="secondary" style={{ marginBottom: 4 }}>
+                {frequency === 'monthly' ? 'Start Date' : 'Date'}
+              </Text>
+              <TouchableOpacity
+                style={[styles.input, styles.pickerButton, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Icon name="calendar-outline" size={20} color={theme.textSecondary} />
+                <Text variant="body" style={{ color: scheduledDate ? theme.text : theme.textTertiary, flex: 1 }}>
+                  {scheduledDate ? scheduledDate.toLocaleDateString() : 'Select Date'}
+                </Text>
+              </TouchableOpacity>
+              {frequency === 'monthly' && scheduledDate && (
+                <Text variant="caption1" color="secondary" style={{ marginTop: 4, marginLeft: 4 }}>
+                  Repeats monthly on day <Text weight="semibold">{scheduledDate.getDate()}</Text>
+                </Text>
+              )}
             </View>
           )}
 
-          {/* Time Picker (Always available/optional?) - Requirement says give time to select */}
-          <TouchableOpacity
-            style={[styles.input, styles.pickerButton, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}
-            onPress={() => setShowTimePicker(true)}
-          >
-            <Icon name="time-outline" size={20} color={theme.textSecondary} />
-            <Text variant="body" style={{ color: scheduledTime ? theme.text : theme.textTertiary, flex: 1 }}>
-              {scheduledTime 
-                ? scheduledTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
-                : 'Select Time (Optional)'
-              }
-            </Text>
+          {/* Time Picker */}
+          <View>
+            <Text variant="caption1" color="secondary" style={{ marginBottom: 4 }}>Time (Optional)</Text>
+            <TouchableOpacity
+              style={[styles.input, styles.pickerButton, { backgroundColor: theme.surface, borderColor: theme.surfaceBorder }]}
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Icon name="time-outline" size={20} color={theme.textSecondary} />
+              <Text variant="body" style={{ color: scheduledTime ? theme.text : theme.textTertiary, flex: 1 }}>
+                {scheduledTime 
+                  ? scheduledTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+                  : 'Select Time'
+                }
+              </Text>
+              {scheduledTime && (
+                <TouchableOpacity onPress={() => setScheduledTime(null)}>
+                  <Icon name="close-circle" size={20} color={theme.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+            
             {scheduledTime && (
-              <TouchableOpacity onPress={() => setScheduledTime(null)}>
-                <Icon name="close-circle" size={20} color={theme.textTertiary} />
-              </TouchableOpacity>
+              <Text variant="caption1" color="secondary" style={{ marginTop: 4, marginLeft: 4 }}>
+                Appears in: <Text weight="semibold">{getTimePeriod(scheduledTime)}</Text>
+              </Text>
             )}
-          </TouchableOpacity>
-          
-          {scheduledTime && (
-            <Text variant="caption1" color="secondary" style={{ marginLeft: 4 }}>
-              Appears in: <Text weight="semibold">{getTimePeriod(scheduledTime)}</Text>
-            </Text>
-          )}
+          </View>
         </View>
       </View>
     );
